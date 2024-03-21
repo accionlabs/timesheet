@@ -1,0 +1,139 @@
+version: '2.1'
+
+services:
+  backend:
+    build:
+      args:
+      - NODE_ENV=production
+      context: backend
+    environment:
+      - DATABASE_DB=timesheets
+      - DATABASE_USER=backend
+      - DATABASE_HOST=db
+      - NODE_ENV=production
+    ports:
+      - 8080:8080
+    secrets:
+      - db-password
+    volumes:
+      - ./backend/src:/code/src
+      - ./backend/package.json:/code/package.json
+      - ./backend/package-lock.json:/code/package-lock.json
+      - back-notused:/opt/app/node_modules
+    networks:
+      - public
+      - private
+      - kafka_network
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+
+  db:
+    image: mariadb:10
+    # command: '--authentication_policy=mysql_native_password'
+    restart: always
+    secrets:
+      - db-password
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/sql:/docker-entrypoint-initdb.d
+    networks:
+      - private
+    environment:
+      - MARIADB_DATABASE=timesheets
+      - MARIADB_ROOT_PASSWORD_FILE=/run/secrets/db-password
+    healthcheck:
+      interval: 30s
+      retries: 3
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized"
+        ]
+      timeout: 30s
+
+  frontend:
+    build:
+      context: frontend
+    ports:
+      - 5173:5173
+      - 80:80
+    volumes:
+      - ./frontend/src:/code/src
+      # - /code/node_modules
+    networks:
+      - public
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper
+    networks:
+      - kafka_network
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN 
+
+  broker:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: broker
+    networks:
+      - kafka_network
+    ports:
+      # To learn about configuring Kafka for access across networks see
+      # https://www.confluent.io/blog/kafka-client-cannot-connect-to-broker-on-aws-on-docker-etc/
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://broker:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN 
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "broker:29092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  notifications:
+    build:
+      args:
+      - NODE_ENV=production
+      context: notifications 
+    ports:
+      - 8081:8081
+    volumes:
+      - ./notifications/src:/code/src
+      - ./notifications/package.json:/code/package.json
+      - ./notifications/package-lock.json:/code/package-lock.json
+      - back-notused:/opt/app/node_modules
+    networks:
+      - private
+      - kafka_network
+    depends_on:
+      broker:
+        condition: service_healthy
+
+networks:
+  public:
+  private:
+  kafka_network:
+volumes:
+  back-notused:
+  db-data:
+secrets:
+  db-password:
+    file: db/password.txt
