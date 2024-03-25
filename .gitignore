@@ -15,6 +15,7 @@ dist
 dist-ssr
 *.local
 compose.dev.yaml
+Dockerfile.dev
 
 # Editor directories and files
 .vscode/*
