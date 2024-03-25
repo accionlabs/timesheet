@@ -5,12 +5,10 @@ FROM node:20-alpine AS development
 ENV PORT=5173
 
 WORKDIR /code
-COPY package.json /code/package.json
-COPY package-lock.json /code/package-lock.json
-RUN npm ci
+COPY package*.json ./
+RUN npm config set registry https://registry.npmjs.org/
+RUN npm ci --omit=dev
 COPY . /code
-
-CMD [ "npm", "run", "dev" ]
 
 FROM development AS builder
 
