@@ -7,7 +7,7 @@ ENV PORT=5173
 WORKDIR /code
 COPY package*.json ./
 RUN npm config set registry https://registry.npmjs.org/
-RUN npm ci --omit=dev
+RUN npm ci 
 COPY . /code
 
 FROM development AS builder
