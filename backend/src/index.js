@@ -12,13 +12,13 @@ const { notFoundHandler } = require("./middleware/not-found.middleware");
 const {
   monthlyTimesheetCreation,
   monthlyTimesheetLocking,
-  dailyNotificationPreparations,
+  // dailyNotificationPreparations,
 } = require("./services/schedulers.service");
 const { logger } = require("./services/logger.service");
 
 monthlyTimesheetCreation.start();
 monthlyTimesheetLocking.start();
-dailyNotificationPreparations.start();
+// dailyNotificationPreparations.start();
 
 dotenv.config();
 
