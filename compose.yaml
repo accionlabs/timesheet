@@ -1,0 +1,87 @@
+version: '2.1'
+
+services:
+  backend:
+    build:
+      context: backend
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_DB=timesheets
+      - DATABASE_USER=backend
+      - DATABASE_HOST=db
+      - NODE_ENV=production
+    ports:
+      - 8080:8080
+    secrets:
+      - db-password
+    volumes:
+      - ./backend/src:/code/src
+      - ./backend/package.json:/code/package.json
+      - ./backend/package-lock.json:/code/package-lock.json
+      - back-notused:/opt/app/node_modules
+    networks:
+      - public
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:10
+    # command: '--authentication_policy=mysql_native_password'
+    restart: always
+    secrets:
+      - db-password
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/sql:/docker-entrypoint-initdb.d
+    networks:
+      - private
+    environment:
+      - MARIADB_DATABASE=timesheets
+      - MARIADB_ROOT_PASSWORD_FILE=/run/secrets/db-password
+    healthcheck:
+      interval: 30s
+      retries: 3
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized"
+        ]
+      timeout: 30s
+
+  frontend:
+    build:
+      context: frontend
+      args:
+        VITE_REACT_APP_AUTH0_DOMAIN: dev-nznlw3vbcek403f6.us.auth0.com
+        VITE_REACT_APP_AUTH0_CLIENT_ID: tnTfkzX6LaXlQOHTn2QMquTsSQxAw42D
+        # VITE_REACT_APP_AUTH0_CALLBACK_URL: https://localhost/callback
+        VITE_REACT_APP_AUTH0_CALLBACK_URL: https://34.73.165.80/callback
+        VITE_REACT_APP_AUTH0_AUDIENCE: urn:timesheets
+        # VITE_REACT_APP_API_SERVER_URL: https://localhost:8080
+        VITE_REACT_APP_API_SERVER_URL: https://34.73.165.80:8080
+        VITE_REACT_APP_ONESIGNAL_APP_ID: e3ad4d48-3f87-48af-b6ea-40bfd9780e8b
+    ports:
+      - 5173:5173
+      - 80:80
+      - 443:443
+    volumes:
+      - ./frontend/src:/code/src
+      # - /code/node_modules
+    networks:
+      - public
+
+networks:
+  public:
+  private:
+volumes:
+  back-notused:
+  db-data:
+secrets:
+  db-password:
+    file: db/password.txt
